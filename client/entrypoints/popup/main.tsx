@@ -2,24 +2,27 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { browser } from 'wxt/browser';
 import '../../assets/tailwind.css';
+import { server } from '@/lib/server-client';
 
 import { useEffect, useState } from 'react';
 
 export default function App() {
-  const [title, setTitle] = useState('');
+  const [name, setName] = useState('');
+  const [examCode, setExamCode] = useState('');
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [windowId, setWindowId] = useState<number | null>(null);
 
-  // Restore saved title + current recording state, and stay in sync with changes
+  // Restore saved user name and exam code, and stay in sync with recording state.
   useEffect(() => {
     browser.windows.getCurrent().then((currentWindow) => {
       if (typeof currentWindow.id === 'number') setWindowId(currentWindow.id);
     });
-    browser.storage.local.get('lastTitle').then(({ lastTitle }) => {
-      if (typeof lastTitle === "string") setTitle(lastTitle);
+    browser.storage.local.get(['lastName', 'lastExamCode']).then(({ lastName, lastExamCode }) => {
+      if (typeof lastName === 'string') setName(lastName);
+      if (typeof lastExamCode === 'string') setExamCode(lastExamCode);
     });
     browser.storage.session.get('recording').then(({ recording }) => {
       setRecording(!!recording);
@@ -36,17 +39,29 @@ export default function App() {
   }, []);
 
   const start = async () => {
-    const finalTitle = title.trim() || 'untitled';
+    const finalName = name.trim();
+    const finalExamCode = examCode.trim();
+    if (!finalName || !finalExamCode) {
+      setError('Enter your name and an exam code to continue.');
+      return;
+    }
     setBusy(true);
     setError('');
-    setNotice('Opening the recorder in the side panel…');
+    setNotice('Checking exam code…');
     try {
+      const exam = await server.host.exams({ code: finalExamCode }).get();
+      if (exam.error) throw new Error('Could not check the exam code. Try again.');
+      if (exam.data !== 'enabled') {
+        setNotice('');
+        setError(exam.data === 'disabled' ? 'This exam is disabled.' : exam.data === 'expired' ? 'This exam has expired.' : 'Exam code not found.');
+        return;
+      }
       if (windowId === null) throw new Error('Could not determine the current browser window.');
       // Call immediately from this click handler to satisfy sidePanel.open's user-gesture requirement.
       const opening = browser.sidePanel.open({ windowId });
-      await browser.storage.local.set({ lastTitle: finalTitle });
+      await browser.storage.local.set({ lastName: finalName, lastExamCode: finalExamCode });
       await opening;
-      setNotice('Choose screen and start from the recorder panel.');
+      setNotice('Exam enabled. Choose screen and start from the recorder panel.');
     } catch (startError) {
       setError(String(startError));
     } finally {
@@ -69,10 +84,19 @@ export default function App() {
       <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Recording title"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Your name"
           maxLength={80}
+          disabled={recording || busy}
+          className="input input-bordered w-full"
+        />
+        <input
+          type="text"
+          value={examCode}
+          onChange={(e) => setExamCode(e.target.value)}
+          placeholder="Exam code"
+          maxLength={40}
           disabled={recording || busy}
           className="input input-bordered w-full"
         />

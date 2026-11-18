@@ -1,14 +1,15 @@
 
 import { authClient } from "@/lib/auth-client";
 import { server } from "@/lib/server-client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, EyeClosed } from 'lucide-react';
+import CopyButton from '@/components/CopyButton';
 
 
 
 export type Selection =
     | { type: "option"; id: string }
-    | { type: "history"; id: number }
+    | { type: "history"; id: number; status: "enabled" | "disabled"; expired: boolean }
     | null;
 
 interface SidebarProps {
@@ -24,17 +25,8 @@ const navigation = [
 ];
 
 
-const initialHistory = [
-    { title: "item 1", id: 1, code: "code-1231", status: "disabled" },
-    { title: "item 2", id: 2, code: "code-1231", status: "disabled" },
-    { title: "item 3", id: 3, code: "code-1231", status: "disabled" },
-    { title: "item 4", id: 4, code: "code-1231", status: "disabled" },
-    { title: "item 5", id: 5, code: "code-1231", status: "disabled" },
-    { title: "item 6", id: 6, code: "code-1231", status: "disabled" },
-];
 export default function Sidebar({ updateCount, meetCreated, selected, onSelect }: SidebarProps) {
-    const [active, setActive] = useState("Dashboard");
-    const [history, setHistory] = useState(initialHistory);
+    const [history, setHistory] = useState<Array<{title: string; id: number; code: string; status: string; expired: boolean}>>([]);
 
     const getHistory = async () => {
         const res = await server.host.exams.get()
@@ -48,7 +40,7 @@ export default function Sidebar({ updateCount, meetCreated, selected, onSelect }
             onSelect({ type: "option", id: "dashboard" })
         }
         else {
-            onSelect({ type: "history", id: meetCreated })
+            onSelect({ type: "history", id: meetCreated, status: "enabled", expired: false })
         }
     }, [meetCreated])
      useEffect(() => {
@@ -58,9 +50,6 @@ export default function Sidebar({ updateCount, meetCreated, selected, onSelect }
     useEffect(() => {
         getHistory()
     }, [])
-    const isActive = (type: "option" | "history", id: string | number) =>
-        selected?.type === type && selected.id === id;
-
     const logOut = async () => {
         await authClient.signOut({
             fetchOptions: {
@@ -86,9 +75,7 @@ export default function Sidebar({ updateCount, meetCreated, selected, onSelect }
                 {navigation.map((item) => (
                     <li key={item.label}>
                         <button
-                            className={
-                                active === item.label ? "active" : ""
-                            }
+                            className={selected?.type === "option" && selected.id === item.label.toLowerCase() ? "active" : ""}
                             onClick={() => onSelect({ type: "option", id: item.label.toLowerCase() })}
                         >
                             <span>{item.icon}</span>
@@ -123,9 +110,9 @@ export default function Sidebar({ updateCount, meetCreated, selected, onSelect }
                 {history.map((item) => (
                     <li key={item.id} className="flex flex-row items-center">
                         <button
-                            className="flex-1 min-w-0 flex items-center gap-2 text-sm text-left"
+                            className={`flex-1 min-w-0 flex items-center gap-2 text-sm text-left ${selected?.type === "history" && selected.id === item.id ? "active" : ""}`}
                             title={item.title}
-                            onClick={() => onSelect({ type: "history", id: item.id })}
+                            onClick={() => onSelect({ type: "history", id: item.id, status: item.status === "disabled" ? "disabled" : "enabled", expired: item.expired })}
                         >
                             {item.status === "enabled" && <Eye />}
                             {item.status === "disabled" && <EyeClosed />}

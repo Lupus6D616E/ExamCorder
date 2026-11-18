@@ -3,6 +3,10 @@ import { betterAuthPlugin } from './auth';
 import { cors } from "@elysiajs/cors"
 import { mkdir } from 'node:fs/promises';
 import { hostPlugin } from './modules/host/controller';
+import { db } from './db/db';
+import { exams, examLog } from './db/schema';
+import { eq } from 'drizzle-orm';
+import { cleanupExpiredRecordings } from './lib/cleanup-expired';
 
 const sessions = new Map<string, {
   screen: any;
@@ -30,8 +34,8 @@ function slugify(input: string) {
 function fileStamp(iso: string) {
   const d = new Date(iso);
   const date = isNaN(d.getTime()) ? new Date() : d; // fall back if the client sent junk
-  // 2026-11-16_09-30-15 (no colons, which are illegal on Windows)
-  return date.toISOString().slice(0, 19).replace('T', '_').replace(/:/g, '-');
+  // Include milliseconds so repeated recordings in one second get distinct filenames.
+  return date.toISOString().replace('T', '_').replace(/:/g, '-').replace(/\.(\d{3})Z$/, '-$1');
 }
 
 
@@ -48,22 +52,44 @@ const app = new Elysia()
   .ws('/record/:sessionId', {
     async open(ws) {
       const { sessionId } = ws.data.params;
-      const { title = '', startedAt = '' } = ws.data.query as Record<string, string>;
+      const { name = '', examCode = '', startedAt = '' } = ws.data.query as Record<string, string>;
+      if (!examCode.trim()) {
+        ws.close(1008, 'Exam code required');
+        return;
+      }
+      const [exam] = await db
+        .select({ status: exams.status, expired: exams.expired })
+        .from(exams)
+        .where(eq(exams.code, examCode.trim()))
+        .limit(1);
+      if (exam?.status !== 'enabled' || exam.expired) {
+        ws.close(1008, exam ? (exam.expired ? 'Exam expired' : 'Exam disabled') : 'Exam code not found');
+        return;
+      }
+
+      const ip = ws.data.request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+        || ws.data.request.headers.get('x-real-ip')
+        || 'unknown';
+      const [logEntry] = await db.insert(examLog).values({
+        name: name.trim() || 'unknown',
+        code: examCode.trim(),
+        ip,
+      }).returning({ id: examLog.id });
+
       console.log('[recording] websocket opened', { sessionId, wsId: ws.id });
-      const base = `${fileStamp(startedAt)}_${slugify(title)}`;
-      // short id suffix guarantees uniqueness if two recordings share a title and second
-      const dir = `./recordings/${base}_${sessionId.slice(0, 8)}`;
+      const timestamp = fileStamp(startedAt);
+      const dir = `./recordings/${slugify(examCode)}/${slugify(name)}`;
       await mkdir(dir, { recursive: true });
 
       await Bun.write(
-        `${dir}/meta.json`,
-        JSON.stringify({ sessionId, title, startedAt }, null, 2),
+        `${dir}/log-${logEntry.id}_meta.json`,
+        JSON.stringify({ sessionId, name, examCode, startedAt, timestamp }, null, 2),
       );
       console.log('[recording] recording files initialized', { sessionId, dir });
 
       sessions.set(ws.id, {
-        screen: Bun.file(`${dir}/${base}_screen.webm`).writer(),
-        webcam: Bun.file(`${dir}/${base}_webcam.webm`).writer(),
+        screen: Bun.file(`${dir}/display_${timestamp}.webm`).writer(),
+        webcam: Bun.file(`${dir}/webcam_${timestamp}.webm`).writer(),
         screenFrames: 0,
         webcamFrames: 0,
         screenBytes: 0,
@@ -133,3 +159,14 @@ const app = new Elysia()
 export type ExamcorderServer = typeof app
 
 console.log(`ExamCorder API listening at ${app.server?.url}`);
+
+async function runExpiredCleanup() {
+  try {
+    await cleanupExpiredRecordings();
+  } catch (error) {
+    console.error('[cleanup] expired recording cleanup failed', error);
+  }
+}
+
+void runExpiredCleanup();
+Bun.cron('0 1 * * *', runExpiredCleanup);

@@ -6,6 +6,8 @@ import type { Selection } from '@/components/SideBar';
 import { authClient } from '@/lib/auth-client'; 
 import { ThemeToggle } from '@/components/ThemeToggle';
 import SettingsCard from '@/components/SettingsCard';
+import ExamLogs from '@/components/ExamLogs';
+import { useState } from 'react';
 
 export default function App(){
     return(
@@ -21,6 +23,10 @@ function Host() {
 
     function updateSideBar() {
         setSideBarSubmitCount((count) => count + 1);
+    }
+    function updateSelectedExamStatus(status: "enabled" | "disabled") {
+        setSelected((current) => current?.type === "history" ? { ...current, status } : current);
+        updateSideBar();
     }
     const [meetCreatedId, setMeetCreatedId] = useState(0);
     const { data: session, isPending } = authClient.useSession();
@@ -44,6 +50,7 @@ function Host() {
                 <main className="flex-1 base-100 p-10 overflow-y-auto">
 
                     {selected?.type === "option" && selected.id === "dashboard" && <CreateMeetPage onMeetCreateTrigger={setMeetCreatedId} />}
+                    {selected?.type === "history" && <ExamLogs examId={selected.id} status={selected.status} expired={selected.expired} onStatusChange={updateSelectedExamStatus} />}
 
                     {selected?.type === "option" && selected.id === "settings" && <main className="min-h-screen min-w-72 bg-base-100 p-5 text-base-content">
                         <h1 className="mb-4 text-xl font-bold">

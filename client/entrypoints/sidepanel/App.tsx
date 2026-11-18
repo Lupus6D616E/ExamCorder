@@ -3,11 +3,13 @@ import '@/assets/tailwind.css';
 
 const TRACK = { screen: 0, webcam: 1 } as const;
 const WS_URL = import.meta.env.WXT_WS_URL as string;
+const API_URL = import.meta.env.WXT_API_URL as string;
 
 type RecordingStatus = 'ready' | 'starting' | 'recording' | 'stopping' | 'stopped';
 
 export default function App() {
-  const [recordingTitle, setRecordingTitle] = useState('untitled');
+  const [name, setName] = useState('');
+  const [examCode, setExamCode] = useState('');
   const [status, setStatus] = useState<RecordingStatus>('ready');
   const [error, setError] = useState('');
   const streamsRef = useRef<MediaStream[]>([]);
@@ -17,13 +19,15 @@ export default function App() {
   const stoppingRef = useRef(false);
 
   useEffect(() => {
-    browser.storage.local.get('lastTitle').then(({ lastTitle }) => {
-      if (typeof lastTitle === 'string' && lastTitle.trim()) setRecordingTitle(lastTitle);
+    browser.storage.local.get(['lastName', 'lastExamCode']).then(({ lastName, lastExamCode }) => {
+      if (typeof lastName === 'string') setName(lastName);
+      if (typeof lastExamCode === 'string') setExamCode(lastExamCode);
     });
 
     const onStorageChange = (changes: Record<string, any>, area: string) => {
-      if (area === 'local' && typeof changes.lastTitle?.newValue === 'string') {
-        setRecordingTitle(changes.lastTitle.newValue || 'untitled');
+      if (area === 'local') {
+        if (typeof changes.lastName?.newValue === 'string') setName(changes.lastName.newValue);
+        if (typeof changes.lastExamCode?.newValue === 'string') setExamCode(changes.lastExamCode.newValue);
       }
     };
     const onMessage = async (msg: { target?: string; type?: string }) => {
@@ -48,6 +52,18 @@ export default function App() {
     sendQueueRef.current = Promise.resolve();
 
     try {
+      if (!name.trim() || !examCode.trim()) {
+        throw new Error('Enter your name and an exam code in the extension popup.');
+      }
+      const examResponse = await fetch(`${API_URL}/host/exams/${encodeURIComponent(examCode.trim())}`);
+      if (!examResponse.ok) throw new Error('Could not check the exam code. Try again.');
+      const rawStatus = await examResponse.text();
+      let examStatus = rawStatus.trim();
+      try { examStatus = JSON.parse(examStatus) as string; } catch { /* plain text response */ }
+      if (examStatus !== 'enabled') {
+        throw new Error(examStatus === 'disabled' ? 'This exam is disabled.' : examStatus === 'expired' ? 'This exam has expired.' : 'Exam code not found.');
+      }
+
       const screen = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       streamsRef.current = [screen];
       console.log('[recording] display capture acquired', {
@@ -80,7 +96,7 @@ export default function App() {
   async function connect() {
     const sessionId = crypto.randomUUID();
     const startedAt = new Date().toISOString();
-    const query = new URLSearchParams({ title: recordingTitle, startedAt, token: '...' });
+    const query = new URLSearchParams({ name: name.trim(), examCode: examCode.trim(), startedAt });
     const socket = new WebSocket(`${WS_URL}/record/${sessionId}?${query}`);
     socketRef.current = socket;
     socket.binaryType = 'arraybuffer';
@@ -189,7 +205,8 @@ export default function App() {
         <div className="card-body items-center text-center p-8">
           <div className="text-5xl mb-2">{isActive ? '🔴' : '🎥'}</div>
           <h1 className="text-3xl font-bold">ExamCorder</h1>
-          <p className="text-base-content/60 mt-2 break-all">Recording: {recordingTitle}</p>
+          <p className="text-base-content/60 mt-2 break-all">Name: {name || 'Not entered'}</p>
+          <p className="text-base-content/60 break-all">Exam code: {examCode || 'Not entered'}</p>
 
           <div className="alert mt-6" role="status">
             <span>

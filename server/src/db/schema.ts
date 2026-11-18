@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text} from "drizzle-orm/sqlite-core";
+import { sqliteTable, integer, text, booleanFromInteger } from "drizzle-orm/sqlite-core";
 import { defineRelations, sql } from "drizzle-orm";
 export * from "./auth-schema"
 import { user } from "./auth-schema"
@@ -10,27 +10,26 @@ export const exams = sqliteTable("exams", {
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
-  status: text("status",{
+  status: text("status", {
     enum: ["enabled", "disabled"],
   }).notNull()
     .default("enabled"),
+  expired: integer("expired", { mode: "boolean" })
+    .notNull()
+    .default(false),
 });
 
 export const examLog = sqliteTable("exam_log", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: text("user_id").notNull(),
-  name: text("name").notNull(),
+  name: text("name").notNull(), // name of the person not the exam, that'd be redundant
   code: text("code").notNull(),
-  tab: text("tab").notNull(),
-  url: text("url").notNull(),
-  idle: text("idle", {
-    enum: ["idle", "active", "locked"],
-  }).notNull(),
   ip: text("ip").notNull(),
-  windowFocus: integer({ mode: 'boolean' }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
+  createdAt: integer("created_at", { mode: "timestamp" }) //
     .notNull()
     .default(sql`(unixepoch())`),
+  expired: integer("expired", { mode: "boolean" })
+    .notNull()
+    .default(false),
 })
 export const Relations = defineRelations({}, (r) => ({
 

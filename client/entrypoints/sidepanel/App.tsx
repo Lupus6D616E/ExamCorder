@@ -3,11 +3,11 @@ import '@/assets/tailwind.css';
 
 const TRACK = { screen: 0, webcam: 1 } as const;
 const WS_URL = import.meta.env.WXT_WS_URL as string;
-const recordingTitle = new URLSearchParams(location.search).get('title') || 'untitled';
 
 type RecordingStatus = 'ready' | 'starting' | 'recording' | 'stopping' | 'stopped';
 
 export default function App() {
+  const [recordingTitle, setRecordingTitle] = useState('untitled');
   const [status, setStatus] = useState<RecordingStatus>('ready');
   const [error, setError] = useState('');
   const streamsRef = useRef<MediaStream[]>([]);
@@ -17,14 +17,27 @@ export default function App() {
   const stoppingRef = useRef(false);
 
   useEffect(() => {
+    browser.storage.local.get('lastTitle').then(({ lastTitle }) => {
+      if (typeof lastTitle === 'string' && lastTitle.trim()) setRecordingTitle(lastTitle);
+    });
+
+    const onStorageChange = (changes: Record<string, any>, area: string) => {
+      if (area === 'local' && typeof changes.lastTitle?.newValue === 'string') {
+        setRecordingTitle(changes.lastTitle.newValue || 'untitled');
+      }
+    };
     const onMessage = async (msg: { target?: string; type?: string }) => {
       if (msg.target !== 'recorder' || msg.type !== 'stop') return;
       await stop();
       return { ok: true };
     };
 
+    browser.storage.onChanged.addListener(onStorageChange);
     browser.runtime.onMessage.addListener(onMessage);
-    return () => browser.runtime.onMessage.removeListener(onMessage);
+    return () => {
+      browser.storage.onChanged.removeListener(onStorageChange);
+      browser.runtime.onMessage.removeListener(onMessage);
+    };
   }, []);
 
   // This call must stay directly in the click handler to retain user activation.

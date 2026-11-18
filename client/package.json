@@ -13,6 +13,7 @@
     "@wxt-dev/auto-icons": "^1.1.2",
     "better-auth": "^1.7.25",
     "daisyui": "^5.8.1",
+    "lucide-react": "^1.74.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind": "^4.0.0",

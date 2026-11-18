@@ -38,6 +38,7 @@ export default function App() {
         console.log(apiURL)
     }
     if (session?.user) {
+        window.location.href = "/host.html"
     }
 
     return (

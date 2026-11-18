@@ -2,7 +2,7 @@ import { sqliteTable, integer, text} from "drizzle-orm/sqlite-core";
 import { defineRelations, sql } from "drizzle-orm";
 export * from "./auth-schema"
 import { user } from "./auth-schema"
-export const meets = sqliteTable("host_code", {
+export const exams = sqliteTable("exams", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: text("user_id").notNull().references(() => user.id),
   name: text("name").notNull(),
@@ -13,16 +13,10 @@ export const meets = sqliteTable("host_code", {
   status: text("status",{
     enum: ["enabled", "disabled"],
   }).notNull()
-    .default("disabled"),
-  meetStart: integer("meet_start", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
-  meetEnd: integer("meet_end", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch('now', '+3 hours'))`)
+    .default("enabled"),
 });
 
-export const meetsLog = sqliteTable("meet_log", {
+export const examLog = sqliteTable("exam_log", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: text("user_id").notNull(),
   name: text("name").notNull(),

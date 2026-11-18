@@ -1,7 +1,8 @@
 import { Elysia } from 'elysia';
 import { betterAuthPlugin } from './auth';
-import {cors} from "@elysiajs/cors"
+import { cors } from "@elysiajs/cors"
 import { mkdir } from 'node:fs/promises';
+import { hostPlugin } from './modules/host/controller';
 
 const sessions = new Map<string, {
   screen: any;
@@ -44,7 +45,7 @@ const app = new Elysia()
     })
   )
   .use(betterAuthPlugin)
-   .ws('/record/:sessionId', {
+  .ws('/record/:sessionId', {
     async open(ws) {
       const { sessionId } = ws.data.params;
       const { title = '', startedAt = '' } = ws.data.query as Record<string, string>;
@@ -122,9 +123,13 @@ const app = new Elysia()
       console.error('[recording] websocket error', { code, error });
     },
   })
+  .use(hostPlugin)
   .get('/', () => ({ message: 'ExamCorder API is running' }))
-  .get("/me", ({ user }) => user, { auth: true })
+  .get("/me", ({user}) =>{
+  
+    return  user
+  }, { auth: true })
   .listen(port);
-export type ExamcorderServer = typeof app 
+export type ExamcorderServer = typeof app
 
 console.log(`ExamCorder API listening at ${app.server?.url}`);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { browser } from 'wxt/browser';
 import '../../assets/tailwind.css';
 
 import { useEffect, useState } from 'react';
@@ -10,9 +11,13 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [windowId, setWindowId] = useState<number | null>(null);
 
   // Restore saved title + current recording state, and stay in sync with changes
   useEffect(() => {
+    browser.windows.getCurrent().then((currentWindow) => {
+      if (typeof currentWindow.id === 'number') setWindowId(currentWindow.id);
+    });
     browser.storage.local.get('lastTitle').then(({ lastTitle }) => {
       if (typeof lastTitle === "string") setTitle(lastTitle);
     });
@@ -32,15 +37,16 @@ export default function App() {
 
   const start = async () => {
     const finalTitle = title.trim() || 'untitled';
-    await browser.storage.local.set({ lastTitle: finalTitle });
-
     setBusy(true);
     setError('');
-    setNotice('A recorder tab will open. Click Start there to choose what to share.');
+    setNotice('Opening the recorder in the side panel…');
     try {
-      const url = new URL(browser.runtime.getURL('/recorder.html'));
-      url.searchParams.set('title', finalTitle);
-      await browser.tabs.create({ url: url.toString() });
+      if (windowId === null) throw new Error('Could not determine the current browser window.');
+      // Call immediately from this click handler to satisfy sidePanel.open's user-gesture requirement.
+      const opening = browser.sidePanel.open({ windowId });
+      await browser.storage.local.set({ lastTitle: finalTitle });
+      await opening;
+      setNotice('Choose screen and start from the recorder panel.');
     } catch (startError) {
       setError(String(startError));
     } finally {
@@ -73,7 +79,7 @@ export default function App() {
 
         <button
           onClick={recording ? stop : start}
-          disabled={busy}
+          disabled={busy || (!recording && windowId === null)}
           className={`btn ${recording ? 'btn-error' : 'btn-primary'
             } min-w-44`}
         >

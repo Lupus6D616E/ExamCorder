@@ -5,7 +5,6 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import type { Selection } from '@/components/SideBar';
 import { authClient } from '@/lib/auth-client'; 
 import { ThemeToggle } from '@/components/ThemeToggle';
-import SettingsCard from '@/components/SettingsCard';
 import ExamLogs from '@/components/ExamLogs';
 import { useState } from 'react';
 

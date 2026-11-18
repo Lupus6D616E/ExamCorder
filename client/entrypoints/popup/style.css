@@ -1,0 +1,7 @@
+@import 'daisyui/chunks.css';
+@import 'daisyui/themes.css';
+
+body {
+  min-width: 280px;
+  margin: 0;
+}

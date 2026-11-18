@@ -1,0 +1,26 @@
+{
+  "name": "server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "build": "bun build src/index.ts --target=bun --outdir=dist",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push"
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "^1.7.25",
+    "@elysiajs/cors": "^1.4.3",
+    "better-auth": "^1.7.25",
+    "drizzle-orm": "^1.0.0-rc.5",
+    "elysia": "^1.4.0",
+    "elysiajs": "^0.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "drizzle-kit": "^1.0.0-rc.5",
+    "typescript": "^5.7.0"
+  }
+}

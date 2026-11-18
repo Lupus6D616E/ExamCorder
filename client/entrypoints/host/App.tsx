@@ -58,7 +58,6 @@ function Host() {
                         </h1>
 
                         <ThemeToggle />
-                        <SettingsCard />
                     </main>}
 
 
